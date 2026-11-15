@@ -9,3 +9,4 @@ Type=Application
 Categories=Utility;Office;GTK;
 Keywords=clipboard;history;manager;copy;paste;supabase;
 StartupNotify=true
+

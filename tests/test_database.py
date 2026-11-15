@@ -54,3 +54,4 @@ def test_validation_errors():
 
     with pytest.raises(ValueError):
         db_service.create_snippet(title="Valid title", content="   ")
+

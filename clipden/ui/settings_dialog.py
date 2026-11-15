@@ -173,3 +173,4 @@ class SettingsDialog(tk.Toplevel):
 
         messagebox.showinfo("Saved", "Supabase credentials updated successfully.", parent=self)
         self.destroy()
+

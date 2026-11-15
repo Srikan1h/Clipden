@@ -190,3 +190,4 @@ class DatabaseService:
 
 # Global database service instance
 db_service = DatabaseService()
+

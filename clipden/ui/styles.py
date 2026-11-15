@@ -145,3 +145,4 @@ def apply_styles(root: tk.Tk) -> ttk.Style:
     )
 
     return style
+

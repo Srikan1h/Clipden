@@ -38,11 +38,15 @@ class ClipboardMonitor:
         self._last_content_hash: Optional[str] = None
         self._internal_hashes: Set[str] = set()
 
-        # Threads and processes
+        # Threads and control events
         self._monitor_thread: Optional[threading.Thread] = None
         self._processor_thread: Optional[threading.Thread] = None
         self._watch_proc: Optional[subprocess.Popen] = None
         self._stop_event = threading.Event()
+        self._monitor_stop_event = threading.Event()
+
+        # Optional custom clipboard reader (e.g. from Tkinter main thread)
+        self._clipboard_reader: Optional[Callable[[], Optional[str]]] = None
 
         # Database service reference (injected or imported)
         self._db_service = None
@@ -53,6 +57,10 @@ class ClipboardMonitor:
     def set_db_service(self, db_service) -> None:
         self._db_service = db_service
 
+    def set_clipboard_reader(self, reader: Callable[[], Optional[str]]) -> None:
+        """Register a custom clipboard reader to avoid spawning subprocesses."""
+        self._clipboard_reader = reader
+
     @property
     def is_running(self) -> bool:
         return self._is_running
@@ -60,6 +68,11 @@ class ClipboardMonitor:
     @property
     def is_paused(self) -> bool:
         return self._is_paused
+
+    @property
+    def is_worker_alive(self) -> bool:
+        """Check if the background monitoring worker thread is currently active."""
+        return bool(self._monitor_thread and self._monitor_thread.is_alive())
 
     def _hash_content(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
@@ -100,7 +113,7 @@ class ClipboardMonitor:
 
     def _read_wayland_clipboard(self) -> Optional[str]:
         """
-        Read plain text from Wayland clipboard using wl-paste.
+        Read plain text from Wayland clipboard using a single wl-paste call.
         Returns None if clipboard is empty, non-text (e.g. image, file), or error.
         """
         if not shutil.which("wl-paste"):
@@ -111,36 +124,28 @@ class ClipboardMonitor:
                 return None
 
         try:
-            # First check available types to verify text/plain is present (filters images/files)
-            type_check = subprocess.run(
-                ["wl-paste", "--list-types"],
+            # Single call to wl-paste requesting text directly, avoiding redundant --list-types
+            res = subprocess.run(
+                ["wl-paste", "-n", "-t", "text"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
                 timeout=1.0,
-            )
-            if type_check.returncode != 0:
-                return None
-
-            available_types = type_check.stdout.splitlines()
-            has_text = any("text" in t.lower() or "string" in t.lower() for t in available_types)
-            if not has_text:
-                # Target is an image, file, or non-text format
-                return None
-
-            # Fetch plain text content
-            res = subprocess.run(
-                ["wl-paste", "--type", "text/plain", "--no-newline"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=1.5,
             )
             if res.returncode == 0 and res.stdout:
                 return res.stdout
             return None
         except Exception:
             return None
+
+    def _read_clipboard(self) -> Optional[str]:
+        """Read clipboard using custom reader if set, else fallback to wayland."""
+        if self._clipboard_reader:
+            try:
+                return self._clipboard_reader()
+            except Exception:
+                return None
+        return self._read_wayland_clipboard()
 
     def start(self) -> None:
         """Start background clipboard monitoring and processor threads."""
@@ -150,46 +155,85 @@ class ClipboardMonitor:
             self._is_running = True
             self._is_paused = False
             self._stop_event.clear()
+            self._monitor_stop_event.clear()
 
         # Prime the current clipboard content so existing text is not auto-captured on startup
-        current_clip = self._read_wayland_clipboard()
+        current_clip = self._read_clipboard()
         if current_clip:
             self._last_content_hash = self._hash_content(current_clip)
 
         # Start queue processor thread
-        self._processor_thread = threading.Thread(
-            target=self._process_queue_loop,
-            daemon=True,
-            name="ClipDen-Processor",
-        )
-        self._processor_thread.start()
+        if not self._processor_thread or not self._processor_thread.is_alive():
+            self._processor_thread = threading.Thread(
+                target=self._process_queue_loop,
+                daemon=True,
+                name="ClipDen-Processor",
+            )
+            self._processor_thread.start()
 
-        # Start watcher thread
-        self._monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            daemon=True,
-            name="ClipDen-Watcher",
-        )
-        self._monitor_thread.start()
+        # Start exactly one watcher thread
+        self._start_monitor_worker()
 
         if self._on_status_change:
             self._on_status_change(True)
 
+    def _start_monitor_worker(self) -> None:
+        """Ensure exactly one monitoring worker thread is active (caller must hold lock or verify state)."""
+        if not self._monitor_thread or not self._monitor_thread.is_alive():
+            self._monitor_stop_event.clear()
+            self._monitor_thread = threading.Thread(
+                target=self._monitor_loop,
+                daemon=True,
+                name="ClipDen-Watcher",
+            )
+            self._monitor_thread.start()
+
     def pause(self) -> None:
-        """Pause clipboard monitoring."""
+        """Pause clipboard monitoring and cleanly stop the monitoring worker thread."""
+        thread_to_join: Optional[threading.Thread] = None
         with self._lock:
+            if self._is_paused:
+                return
             self._is_paused = True
+            self._monitor_stop_event.set()
+            if self._monitor_thread and self._monitor_thread.is_alive():
+                thread_to_join = self._monitor_thread
+            self._monitor_thread = None
+
+        if thread_to_join and threading.current_thread() != thread_to_join:
+            thread_to_join.join(timeout=1.0)
+
         if self._on_status_change:
             self._on_status_change(False)
 
     def resume(self) -> None:
-        """Resume clipboard monitoring."""
+        """Resume clipboard monitoring and start exactly one monitoring worker thread."""
         with self._lock:
+            if not self._is_paused and self._monitor_thread and self._monitor_thread.is_alive():
+                # Already active with worker running
+                return
+
             self._is_paused = False
+            self._is_running = True
+            self._monitor_stop_event.clear()
+
             # Refresh last seen hash so we don't capture what was copied during pause if user didn't want it
-            current_clip = self._read_wayland_clipboard()
+            current_clip = self._read_clipboard()
             if current_clip:
                 self._last_content_hash = self._hash_content(current_clip)
+
+            # Ensure processor thread is running
+            if not self._processor_thread or not self._processor_thread.is_alive():
+                self._processor_thread = threading.Thread(
+                    target=self._process_queue_loop,
+                    daemon=True,
+                    name="ClipDen-Processor",
+                )
+                self._processor_thread.start()
+
+            # Start exactly one monitoring worker
+            self._start_monitor_worker()
+
         if self._on_status_change:
             self._on_status_change(True)
 
@@ -203,13 +247,21 @@ class ClipboardMonitor:
             return False
 
     def stop(self) -> None:
-        """Stop all monitoring threads and terminate child processes."""
+        """Stop all monitoring threads and terminate child processes cleanly."""
+        thread_to_join: Optional[threading.Thread] = None
         with self._lock:
-            if not self._is_running:
+            if not self._is_running and not self._monitor_thread:
                 return
             self._is_running = False
             self._is_paused = False
             self._stop_event.set()
+            self._monitor_stop_event.set()
+            if self._monitor_thread and self._monitor_thread.is_alive():
+                thread_to_join = self._monitor_thread
+            self._monitor_thread = None
+
+        if thread_to_join and threading.current_thread() != thread_to_join:
+            thread_to_join.join(timeout=1.0)
 
         if self._watch_proc:
             try:
@@ -266,16 +318,21 @@ class ClipboardMonitor:
         """
         poll_interval = config.poll_interval
 
-        while not self._stop_event.is_set():
+        while not self._stop_event.is_set() and not self._monitor_stop_event.is_set():
             try:
                 if not self._is_paused:
-                    clip_text = self._read_wayland_clipboard()
+                    clip_text = self._read_clipboard()
                     if clip_text:
                         self._handle_new_clipboard_text(clip_text)
             except Exception as e:
                 print(f"[ClipboardMonitor] Loop error: {e}")
 
-            time.sleep(poll_interval)
+            # Sleep in small slices to respond promptly to stop events
+            slices = int(poll_interval / 0.05) if poll_interval > 0.05 else 1
+            for _ in range(slices):
+                if self._stop_event.is_set() or self._monitor_stop_event.is_set():
+                    break
+                time.sleep(0.05)
 
     def _process_queue_loop(self) -> None:
         """

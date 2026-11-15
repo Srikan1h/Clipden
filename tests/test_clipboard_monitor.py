@@ -70,3 +70,4 @@ def test_monitor_pause_resume():
 
     monitor.resume()
     assert monitor.is_paused is False
+

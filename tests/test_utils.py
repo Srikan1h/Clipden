@@ -72,3 +72,4 @@ def test_get_content_preview():
     preview = get_content_preview(multiline, max_chars=30)
     assert "\n" not in preview
     assert "Line 1 Line 2" in preview
+

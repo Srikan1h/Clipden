@@ -146,3 +146,4 @@ class SnippetDialog(tk.Toplevel):
     @property
     def result(self) -> Optional[Tuple[str, str]]:
         return self._saved_data
+

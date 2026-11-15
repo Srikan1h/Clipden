@@ -17,3 +17,4 @@ if [ -f "$DIR/.venv/bin/python" ]; then
 else
     exec python3 "$DIR/main.py" "$@"
 fi
+

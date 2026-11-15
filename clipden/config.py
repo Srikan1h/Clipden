@@ -111,3 +111,4 @@ class Config:
 
 # Singleton instance
 config = Config()
+

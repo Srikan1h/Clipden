@@ -96,3 +96,4 @@ def get_content_preview(content: str, max_chars: int = 80) -> str:
     if len(single_line) > max_chars:
         return single_line[:max_chars].rstrip() + "…"
     return single_line
+

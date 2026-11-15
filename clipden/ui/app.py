@@ -39,6 +39,7 @@ class ClipDenApp:
         self.selected_snippet: Optional[Dict[str, Any]] = None
         self._search_debounce_timer: Optional[threading.Timer] = None
         self._clear_msg_id: Optional[str] = None
+        self._cached_clipboard_text: Optional[str] = None
 
         # Clipboard Monitor
         self.monitor = ClipboardMonitor(
@@ -46,6 +47,7 @@ class ClipDenApp:
             on_status_change=self._on_monitor_status_change_callback,
         )
         self.monitor.set_db_service(db_service)
+        self.monitor.set_clipboard_reader(self._get_clipboard_from_main_thread)
 
         # Build UI layout
         self._build_header()
@@ -65,14 +67,24 @@ class ClipDenApp:
         self.refresh_snippets()
         self.monitor.start()
 
+    def _get_clipboard_from_main_thread(self) -> Optional[str]:
+        return self._cached_clipboard_text
+
     def _schedule_ui_queue_processor(self) -> None:
-        """Process dispatched UI calls on the Tkinter main thread."""
+        """Process dispatched UI calls and sample clipboard safely on the Tkinter main thread."""
         while not self.ui_queue.empty():
             try:
                 task = self.ui_queue.get_nowait()
                 task()
             except Exception as e:
                 print(f"[ClipDen] UI dispatch error: {e}")
+
+        # Sample clipboard on the main thread without spawning external subprocesses
+        if hasattr(self, "monitor") and not self.monitor.is_paused and not self._is_shutting_down:
+            try:
+                self._cached_clipboard_text = self.root.clipboard_get()
+            except Exception:
+                self._cached_clipboard_text = None
 
         if not self._is_shutting_down:
             self.root.after(40, self._schedule_ui_queue_processor)
@@ -361,8 +373,7 @@ class ClipDenApp:
         self._clear_msg_id = self.root.after(duration_ms, lambda: self.flash_msg_lbl.config(text=""))
 
     def _toggle_monitoring(self) -> None:
-        is_active = self.monitor.toggle_pause()
-        self._update_monitoring_ui(is_active)
+        self.monitor.toggle_pause()
 
     def _update_monitoring_ui(self, is_active: bool) -> None:
         if is_active:
