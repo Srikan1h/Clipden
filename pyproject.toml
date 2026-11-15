@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipden"
+version = "0.1.0"
+description = "Everything you copy. One place to keep. Linux Desktop Clipboard Manager with Supabase"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "supabase>=2.34.0",
+    "pyperclip>=1.9.0",
+    "keyring>=25.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+clipden = "clipden.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["clipden*"]

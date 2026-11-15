@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=ClipDen
+GenericName=Clipboard Manager
+Comment=Everything you copy. One place to keep.
+Exec=/home/srikan1h/Clipden/run_clipden.sh
+Icon=edit-paste
+Terminal=false
+Type=Application
+Categories=Utility;Office;GTK;
+Keywords=clipboard;history;manager;copy;paste;supabase;
+StartupNotify=true
