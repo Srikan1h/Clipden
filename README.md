@@ -6,6 +6,25 @@ ClipDen is a lightweight, open-source Linux desktop application built for Ubuntu
 
 ---
 
+## Connecting ClipDen to Supabase
+
+ClipDen uses your own Supabase project to store clipboard snippets. Your data remains entirely in your database, and ClipDen does not operate a centralized backend.
+
+### Setup
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Open the **SQL Editor** in your Supabase dashboard.
+3. Open [`database/schema.sql`](database/schema.sql) from this repository, copy the complete script, and run it in the SQL Editor.
+4. Enable **Anonymous Sign-ins** in the Supabase dashboard under **Authentication → Sign In / Providers**.
+5. Open **Project Settings → API Keys**.
+6. Copy your **Project URL** and **Publishable Key** (or anon key).
+7. Launch ClipDen and enter these credentials in the Settings dialog.
+
+> [!IMPORTANT]
+> Use only your Supabase Project URL and Publishable / Anon Key. Never enter your Secret Key or service-role key into ClipDen.
+
+Once connected, ClipDen automatically creates an anonymous authentication session and securely stores your snippets in your own database with user-isolated Row Level Security (RLS).
+
 ## Features
 
 - **Automatic Clipboard Capture (Wayland-First):**
@@ -49,33 +68,17 @@ ClipDen is a lightweight, open-source Linux desktop application built for Ubuntu
 
 ---
 
-## Database Schema
+## Database Schema & Row Level Security
 
-```sql
-CREATE TABLE public.snippets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    source TEXT NOT NULL CHECK (source IN ('manual', 'clipboard')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid()
-);
+The complete database initialization script is available in [`database/schema.sql`](database/schema.sql).
 
--- Optimized indexes
-CREATE INDEX idx_snippets_created_at_desc ON public.snippets (created_at DESC);
-CREATE INDEX idx_snippets_user_id ON public.snippets (user_id);
-
--- Row Level Security
-ALTER TABLE public.snippets ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow select snippets" ON public.snippets FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Allow insert snippets" ON public.snippets FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow update snippets" ON public.snippets FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Allow delete snippets" ON public.snippets FOR DELETE TO anon, authenticated USING (true);
-
-GRANT ALL ON TABLE public.snippets TO anon, authenticated, service_role;
-```
+It provisions:
+- **`snippets` Table:** Stores captured and manual snippets with `user_id` defaulting to `auth.uid()`.
+- **Performance Indexes:** Optimized B-tree indexes for `user_id`, `created_at DESC`, and composite `(user_id, created_at DESC)`.
+- **Timestamp Automation:** Trigger using search-path-hardened PL/pgSQL function to update `updated_at`.
+- **Strict Row Level Security (RLS):** Policies restricting access so each authenticated user can only view, insert, update, or delete their own snippets (`(SELECT auth.uid()) = user_id`).
+- **Least-Privilege Grants:** Revokes permissions from `PUBLIC` and `anon`; grants needed table privileges only to `authenticated`.
+- **Verification Assertion:** Automated post-execution check validating that RLS and policy configurations are active.
 
 ---
 
