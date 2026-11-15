@@ -103,7 +103,7 @@ class ClipDenApp:
 
         title_lbl = ttk.Label(
             brand_frame,
-            text="ClipDen",
+            text="Clipden",
             font=("Ubuntu", 16, "bold"),
             foreground=COLORS["primary"],
             background=COLORS["bg_main"],

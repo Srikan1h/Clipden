@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2711c" />
+      <stop offset="100%" stop-color="#b83e14" />
+    </linearGradient>
+    <linearGradient id="boardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#edeef0" />
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bgGrad)" filter="url(#dropShadow)" />
+
+  <!-- Clipboard Board -->
+  <rect x="28" y="24" width="72" height="84" rx="10" fill="#4a154b" opacity="0.3" />
+  <rect x="30" y="26" width="68" height="80" rx="8" fill="url(#boardGrad)" />
+
+  <!-- Clip on top of clipboard -->
+  <rect x="46" y="16" width="36" height="18" rx="5" fill="#333333" />
+  <rect x="52" y="20" width="24" height="6" rx="2" fill="#e95420" />
+
+  <!-- Clipboard text lines -->
+  <rect x="42" y="44" width="44" height="6" rx="3" fill="#e95420" />
+  <rect x="42" y="56" width="34" height="5" rx="2.5" fill="#77216f" opacity="0.8" />
+  <rect x="42" y="66" width="38" height="5" rx="2.5" fill="#888888" opacity="0.6" />
+  <rect x="42" y="76" width="28" height="5" rx="2.5" fill="#888888" opacity="0.6" />
+
+  <!-- Sparkle indicator -->
+  <circle cx="86" cy="88" r="14" fill="#2072b8" />
+  <path d="M86 79 L88 85 L94 86 L88 88 L86 94 L84 88 L78 86 L84 85 Z" fill="#ffffff" />
+</svg>

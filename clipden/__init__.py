@@ -30,5 +30,5 @@ for p in (_user_py_dynload, _user_py_dir):
     if os.path.isdir(p) and p not in sys.path:
         sys.path.insert(0, p)
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 

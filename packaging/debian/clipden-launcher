@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# ClipDen System Launcher Wrapper
+set -e
+
+# Execute the bundled application
+exec /opt/clipden/clipden "$@"

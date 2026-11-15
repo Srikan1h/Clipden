@@ -19,7 +19,11 @@ class Config:
         if env_path and os.path.exists(env_path):
             load_dotenv(dotenv_path=env_path)
         else:
-            # Check local .env first, then system environment
+            # Check user config directory first (~/.config/clipden/config.env), then local .env
+            user_config_path = os.path.expanduser("~/.config/clipden/config.env")
+            if os.path.exists(user_config_path):
+                load_dotenv(dotenv_path=user_config_path)
+            # Local .env for development
             load_dotenv()
 
         self._url: Optional[str] = None

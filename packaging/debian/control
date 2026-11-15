@@ -1,0 +1,13 @@
+Package: clipden
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: ClipDen Maintainers <maintainers@clipden.org>
+Depends: libc6 (>= 2.34), wl-clipboard
+Recommends: gnome-keyring
+Homepage: https://github.com/clipden/clipden
+Description: Linux desktop clipboard manager with Supabase cloud sync
+ ClipDen is a lightweight Linux desktop application that automatically
+ captures copied text, securely stores it in your Supabase PostgreSQL
+ database, and provides fast search, editing, deletion, and retrieval.

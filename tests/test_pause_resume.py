@@ -96,3 +96,4 @@ def test_gui_toggle_pause_resume():
     assert app.pause_resume_btn.cget("text") == "⏸ Pause"
 
     app.on_closing()
+
